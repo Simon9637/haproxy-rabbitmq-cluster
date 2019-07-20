@@ -1,0 +1,74 @@
+version: '3'
+services:
+  rabbitmq1:
+    image: rabbitmq:management-alpine
+    hostname: rabbitmq1
+    container_name: rabbitmq1
+    networks:
+      rmq_cluster:
+        ipv4_address: 172.100.100.2
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_ERLANG_COOKIE: abcdefg
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+
+  rabbitmq2:
+    image: rabbitmq:management-alpine
+    hostname: rabbitmq2
+    container_name: rabbitmq2
+    depends_on:
+      - rabbitmq1
+    networks:
+      rmq_cluster:
+        ipv4_address: 172.100.100.3
+    environment:
+      RABBITMQ_ERLANG_COOKIE: abcdefg
+    volumes:
+      - ./cluster-entrypoint.sh:/usr/local/bin/cluster-entrypoint.sh
+    entrypoint: sh /usr/local/bin/cluster-entrypoint.sh
+    ports:
+      - "15673:15672"
+      - "5673:5672"
+
+  rabbitmq3:
+    image: rabbitmq:management-alpine
+    hostname: rabbitmq3
+    container_name: rabbitmq3
+    depends_on:
+      - rabbitmq2
+    networks:
+      rmq_cluster:
+        ipv4_address: 172.100.100.4
+    environment:
+      RABBITMQ_ERLANG_COOKIE: abcdefg
+    volumes:
+      - ./cluster-entrypoint.sh:/usr/local/bin/cluster-entrypoint.sh
+    entrypoint: sh /usr/local/bin/cluster-entrypoint.sh
+    ports:
+      - "15674:15672"
+      - "5674:5672"
+
+  haproxy:
+    image: haproxy:2.0
+    container_name: haproxy_rmq_cluster
+    depends_on:
+      - rabbitmq1
+      - rabbitmq2
+      - rabbitmq3
+    networks:
+      rmq_cluster:
+        ipv4_address: 172.100.100.10
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - 5669-5671:5669-5671
+
+networks:
+  rmq_cluster:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.100.100.0/16
